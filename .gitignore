@@ -1,0 +1,10 @@
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
