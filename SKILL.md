@@ -2,25 +2,29 @@
 name: committer
 description: >-
   Use this skill whenever the user asks to commit changes, create a git commit, bump project versions,
-  write detailed Conventional Commit messages, organize atomic commits, or maintain CHANGELOG.md.
+  write detailed Conventional Commit messages, organize atomic commits, maintain CHANGELOG.md,
+  or safely push commits and tags to remote repositories with authentication and environment validation.
 ---
 
 # Committer Skill Runbook
 
-This skill guides the agent through an intelligent, safe, and structured git workflow: analyzing repository changes, splitting unrelated modifications into atomic commits, calculating Semantic Version bumps across project ecosystems, formatting detailed Conventional Commit messages, maintaining `CHANGELOG.md`, and previewing all staged diffs for user confirmation prior to committing.
+This skill guides the agent through an intelligent, safe, and structured git workflow: analyzing repository changes, auditing environment variables and secrets, splitting unrelated modifications into atomic commits, calculating Semantic Version bumps across project ecosystems, formatting detailed Conventional Commit messages, maintaining `CHANGELOG.md`, previewing all staged diffs for user confirmation prior to committing, and validating remote destinations & authentication to push commits and tags.
 
 ---
 
 ## Workflow Steps
 
-### Step 1: Inspect Working Tree & Diffs
+### Step 1: Inspect Working Tree, Secrets & Diffs
 Run the following commands to assess the current repository state:
 ```bash
 git status --short
 git diff --stat
 ```
 1. Check which files are modified, untracked, or already staged.
-2. If there are untracked files that should be ignored, ensure they are in `.gitignore`.
+2. **Environment & Secret Hygiene Audit**:
+   - Check that `.env`, `.env.*` (except `.env.example`), private keys (`*.pem`, `*.key`), and `credentials.json` are present in `.gitignore`.
+   - Ensure no secret files are tracked or staged (`git ls-files | grep -E '\.env$|\.key$|\.pem$|credentials\.json$'`).
+   - If `.env` exists in the project root, ensure a sanitized `.env.example` template is maintained.
 3. Read the actual line diffs using `git diff` (and `git diff --cached` if files are pre-staged).
 
 ---
@@ -136,3 +140,47 @@ Verify the commit with:
 ```bash
 git log -1 --stat
 ```
+
+---
+
+### Step 9: Push to Remote, Destination Resolution & Auth Control
+After a successful commit, ask the user if they would like to push to a remote repository.
+Consult [Remote Auth & Env Reference](./references/remote_auth_env.md) for detailed protocols.
+
+1. **Resolve Remote Destination**:
+   - Inspect existing remotes:
+     ```bash
+     git remote -v
+     ```
+   - **If remotes exist**:
+     Identify current branch (`git branch --show-current`).
+     Confirm the target remote (e.g., `origin`) and branch with the user.
+   - **If no remote is configured**:
+     Ask the user for the remote repository URL (`git@github.com:<owner>/<repo>.git` or `https://github.com/<owner>/<repo>.git`).
+     Add the remote and link tracking:
+     ```bash
+     git remote add origin <remote_url>
+     ```
+
+2. **Verify & Control Authentication**:
+   - **SSH Remote (`git@...`)**:
+     Test connectivity:
+     ```bash
+     ssh -T -o BatchMode=yes -o ConnectTimeout=5 git@<host>
+     ```
+     If auth fails (`Permission denied`), guide the user to add their key via `ssh-add` or generate an SSH key.
+   - **HTTPS Remote (`https://...`)**:
+     If using GitHub, verify with `gh auth status`.
+     If auth fails, provide remediation (`gh auth login -h github.com`).
+     Check for `GITHUB_TOKEN` or `GH_TOKEN` environment variables if automated.
+   - **Pre-Flight Dry Run**:
+     ```bash
+     git push --dry-run <remote> <branch>
+     ```
+
+3. **Execute Push with Tags**:
+   Once destination and authentication are validated:
+   ```bash
+   git push -u --follow-tags <remote> <branch>
+   ```
+   *(If upstream tracking is already set, `git push --follow-tags <remote> <branch>` is sufficient).*
