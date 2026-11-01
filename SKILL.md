@@ -2,13 +2,13 @@
 name: committer
 description: >-
   Use this skill whenever the user asks to commit changes, create a git commit, bump project versions,
-  write detailed Conventional Commit messages, organize atomic commits, maintain CHANGELOG.md,
-  or safely push commits and tags to remote repositories with authentication and environment validation.
+  synchronize README documentation via readme-r, write detailed Conventional Commit messages, organize atomic commits,
+  maintain CHANGELOG.md, or safely push commits and tags to remote repositories with authentication and environment validation.
 ---
 
 # Committer Skill Runbook
 
-This skill guides the agent through an intelligent, safe, and structured git workflow: analyzing repository changes, auditing environment variables and secrets, splitting unrelated modifications into atomic commits, calculating Semantic Version bumps across project ecosystems, formatting detailed Conventional Commit messages, maintaining `CHANGELOG.md`, previewing all staged diffs for user confirmation prior to committing, and validating remote destinations & authentication to push commits and tags.
+This skill guides the agent through an intelligent, safe, and structured git workflow: analyzing repository changes, auditing environment variables and secrets, verifying README documentation synchronization via `readme-r`, splitting unrelated modifications into atomic commits, calculating Semantic Version bumps across project ecosystems, formatting detailed Conventional Commit messages, maintaining `CHANGELOG.md`, previewing all staged diffs for user confirmation prior to committing, and validating remote destinations & authentication to push commits and tags.
 
 ---
 
@@ -29,7 +29,35 @@ git diff --stat
 
 ---
 
-### Step 2: Atomic Commit Analysis & Staging
+### Step 2: README Synchronization Audit (via `readme-r`)
+Before staging commits or calculating version bumps, verify that repository documentation has not fallen behind code modifications:
+
+1. **Locate `readme-r`**:
+   Resolve the change detector helper using the first available path:
+   - Sibling skill in bundle: `../readme-r/scripts/detect_changes.py`
+   - Plugin root: `skills/readme-r/scripts/detect_changes.py`
+   - Global skill: `~/.gemini/config/skills/readme-r/scripts/detect_changes.py`
+   - Project-local skill: `.agents/skills/readme-r/scripts/detect_changes.py`
+
+2. **Execute Change Detection**:
+   ```bash
+   python3 <resolved_path>/detect_changes.py --json
+   ```
+
+3. **Evaluate Documentation State**:
+   - **If code, manifests, or `.env` changed but `README.md` is unupdated or missing**:
+     Execute the `readme-r` workflow:
+     - *Existing README*: Perform contextual merge preserving branding, voice, badges, and untouched sections while updating features, configuration tables, CLI options, and file trees.
+     - *Missing README*: Generate a comprehensive front-page using the standard template in `../readme-r/resources/standard_template.md`.
+   - **If only docs, styles, or tests changed**: Confirm `README.md` is accurate and proceed.
+
+4. **Staging Strategy for README Changes**:
+   - If documenting a single new feature or fix, stage `README.md` directly into that atomic commit.
+   - If documentation changes are broad, refactoring, or cross-cutting, stage them as a dedicated `docs(readme): synchronize documentation` atomic commit.
+
+---
+
+### Step 3: Atomic Commit Analysis & Staging
 1. **Analyze Change Scope**:
    - Are there multiple unrelated features, bug fixes, or refactors mixed in the working tree?
    - If yes, **do not commit everything together**. Group files logically into separate atomic commits (e.g., Commit 1: `fix(auth): ...`, Commit 2: `feat(dashboard): ...`).
@@ -42,7 +70,7 @@ git diff --stat
 
 ---
 
-### Step 3: Change Classification & SemVer Calculation
+### Step 4: Change Classification & SemVer Calculation
 Determine the primary type of change according to [Conventional Commits](./references/conventional_commits.md):
 - **Major (`BREAKING CHANGE`)**: Incompatible API changes, breaking signature alterations, or removed deprecations.
 - **Minor (`feat`)**: New user-facing or system functionality.
@@ -53,22 +81,22 @@ Review [SemVer Rules & Mapping](./references/semver_rules.md) for detailed guide
 
 ---
 
-### Step 4: Execute Version Bump (If Applicable)
+### Step 5: Execute Version Bump (If Applicable)
 Use the automated version bumper helper script:
 
 1. **Check Current Version**:
    ```bash
-   python3 ~/.gemini/config/skills/committer/scripts/bump_version.py --check
-   # (Or: python3 .agents/skills/committer/scripts/bump_version.py --check)
+   python3 scripts/bump_version.py --check
+   # (Or: python3 ~/.gemini/config/plugins/git-release-toolkit/skills/committer/scripts/bump_version.py --check)
    ```
 2. **Dry-Run Proposed Bump**:
    ```bash
-   python3 ~/.gemini/config/skills/committer/scripts/bump_version.py --bump [major|minor|patch] --dry-run
+   python3 scripts/bump_version.py --bump [major|minor|patch] --dry-run
    ```
 3. **Apply Version Bump**:
    If a version increment is warranted and agreed upon:
    ```bash
-   python3 ~/.gemini/config/skills/committer/scripts/bump_version.py --bump [major|minor|patch]
+   python3 scripts/bump_version.py --bump [major|minor|patch]
    ```
    *Stage the updated version file:*
    ```bash
@@ -77,7 +105,7 @@ Use the automated version bumper helper script:
 
 ---
 
-### Step 5: Draft Detailed Conventional Commit Message
+### Step 6: Draft Detailed Conventional Commit Message
 Construct the commit message following this precise structure:
 ```text
 <type>(<scope>): <imperative summary under 72 characters>
@@ -99,7 +127,7 @@ Construct the commit message following this precise structure:
 
 ---
 
-### Step 6: Maintain `CHANGELOG.md` (If Present)
+### Step 7: Maintain `CHANGELOG.md` (If Present)
 If `CHANGELOG.md` exists in the repository root:
 1. Locate the top release section.
 2. Prepend a new section for the bumped version:
@@ -116,7 +144,7 @@ If `CHANGELOG.md` exists in the repository root:
 
 ---
 
-### Step 7: Confirmation & Verification Gate
+### Step 8: Confirmation & Verification Gate
 Before running `git commit`, present a concise preview to the user:
 1. **Staged Files Summary**: List of all files in the current commit.
 2. **Version Bump**: Previous version -> New version (or "No version bump").
@@ -125,7 +153,7 @@ Before running `git commit`, present a concise preview to the user:
 
 ---
 
-### Step 8: Execute Git Commit
+### Step 9: Execute Git Commit
 Once approved:
 ```bash
 git commit -m "<header>" -m "<body>" -m "<breakdown>"
@@ -143,7 +171,7 @@ git log -1 --stat
 
 ---
 
-### Step 9: Push to Remote, Destination Resolution & Auth Control
+### Step 10: Push to Remote, Destination Resolution & Auth Control
 After a successful commit, ask the user if they would like to push to a remote repository.
 Consult [Remote Auth & Env Reference](./references/remote_auth_env.md) for detailed protocols.
 
